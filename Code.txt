@@ -1,0 +1,115 @@
+
+#define BLYNK_TEMPLATE_ID "TMPLG7nemtkR"
+#define BLYNK_DEVICE_NAME "smartlpg"
+#define BLYNK_AUTH_TOKEN "lF_meA6BQNqD7jnly-COTjtLcAgGWygx"
+char ssid[] = "123";
+char pass[] = "12345678";
+
+// define the GPIO connected with Sensors & LEDs
+#define MQ2_SENSOR    A0 //A0
+
+#define GREEN_LED     14 //D5
+#define RED_LED       13 //D7
+#define WIFI_LED      16 //D0
+#define buzzer        D3
+#define ex D6
+//#define BLYNK_PRINT Serial
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+int MQ2_SENSOR_Value = 0;
+bool isconnected = false;
+char auth[] = BLYNK_AUTH_TOKEN;
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+#define VPIN_BUTTON_1    V1
+BlynkTimer timer;
+
+void checkBlynkStatus() { // called every 2 seconds by SimpleTimer
+  getSensorData();
+  isconnected = Blynk.connected();
+  if (isconnected == true) {
+    digitalWrite(WIFI_LED, HIGH);
+    sendSensorData();
+    Serial.println("Blynk Connected");
+  }
+  else {
+    digitalWrite(WIFI_LED, LOW);
+    Serial.println("Blynk Not Connected");
+  }
+}
+
+void getSensorData()
+{
+  MQ2_SENSOR_Value = map(analogRead(MQ2_SENSOR), 0, 1023, 0, 100);
+  Serial.println(MQ2_SENSOR_Value);
+  lcd.setCursor(0, 0);
+  lcd.print("LPG % : ");
+  lcd.print(MQ2_SENSOR_Value );
+    lcd.print("         ");
+  if (MQ2_SENSOR_Value > 10 ) {
+    digitalWrite(GREEN_LED, LOW);
+    digitalWrite(RED_LED, HIGH);
+    digitalWrite(ex, HIGH);
+    lcd.setCursor(0, 1);
+    lcd.print("GAS LEAKING");
+    tone(buzzer, 1000, 200);
+    delay(500);
+    lcd.clear();
+    noTone(buzzer);
+  }
+  else {
+    digitalWrite(GREEN_LED, HIGH);
+    digitalWrite(RED_LED, LOW);
+    digitalWrite(ex, LOW);
+  }
+}
+
+void sendSensorData()
+{
+  Blynk.virtualWrite(VPIN_BUTTON_1, MQ2_SENSOR_Value);
+  if (MQ2_SENSOR_Value > 10 )
+  {
+    Blynk.logEvent("gas", "Gas Detected!");
+  }
+}
+
+void setup()
+{
+  Serial.begin(9600);
+
+  lcd.begin();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("   GAS LEAKAGE  ");
+  lcd.setCursor(0, 1);
+  lcd.print("    DETECTION  ");
+  delay(3000);
+  lcd.clear();
+
+  pinMode(MQ2_SENSOR, INPUT);
+
+  pinMode(GREEN_LED, OUTPUT);
+  pinMode(RED_LED, OUTPUT);
+  pinMode(ex, OUTPUT);
+  pinMode(WIFI_LED, OUTPUT);
+
+  digitalWrite(GREEN_LED, LOW);
+  digitalWrite(RED_LED, LOW);
+  digitalWrite(WIFI_LED, HIGH);
+
+  WiFi.begin(ssid, pass);
+  timer.setInterval(2000L, checkBlynkStatus); // check if Blynk server is connected every 2 seconds
+  Blynk.config(auth);
+  delay(100);
+}
+
+void loop()
+{
+  getSensorData();
+  Blynk.run();
+  timer.run();
+}
